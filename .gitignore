@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+artifacts/
+*.pyc
+node_modules/
+dist/
+frontend/.env
+.DS_Store
+
+# Generated frontend and local test files
+frontend/*.js
+frontend/*.d.ts
+frontend/*.tsbuildinfo
+genkit-sdk/

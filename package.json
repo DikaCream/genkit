@@ -1,0 +1,27 @@
+{
+  "name": "genkit",
+  "version": "1.0.0",
+  "description": "GenKit: turn any deployed GenLayer contract's on-chain schema into a typed, documented SDK.",
+  "type": "module",
+  "bin": {
+    "genkit": "./cli/genkit.js"
+  },
+  "scripts": {
+    "generate": "node cli/genkit.js generate",
+    "publish": "node cli/genkit.js publish",
+    "docs": "node cli/genkit.js docs",
+    "registry": "node cli/genkit.js registry"
+  },
+  "keywords": [
+    "genlayer",
+    "sdk",
+    "codegen",
+    "schema",
+    "intelligent-contracts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "genlayer-js": "^1.1.8"
+  }
+}
