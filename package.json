@@ -9,7 +9,6 @@
   "scripts": {
     "generate": "node cli/genkit.js generate",
     "publish": "node cli/genkit.js publish",
-    "docs": "node cli/genkit.js docs",
     "registry": "node cli/genkit.js registry"
   },
   "keywords": [

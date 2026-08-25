@@ -49,11 +49,6 @@ def set_time(value: str) -> None:
         gl.message_raw["datetime"] = value
 
 
-def addr(value):
-    from genlayer.py.types import Address
-    return value if isinstance(value, Address) else Address(value)
-
-
 def to_hex(value):
     if hasattr(value, "as_hex"):
         return value.as_hex
@@ -66,27 +61,6 @@ def reset_time():
     set_time(BASE_ISO)
     yield
     set_time(BASE_ISO)
-
-
-def mock_docs(
-    vm,
-    description="Register a new monitored source and commit its baseline snapshot.",
-    example_args=None,
-    example_result=1,
-    notes="Write method: submits a transaction that requires wallet approval.",
-):
-    vm.mock_llm(
-        r".*documentation engineer.*",
-        json.dumps(
-            {
-                "description": description,
-                "example_args": example_args if example_args is not None else ["API docs", "Monitor the pricing page.", "https://example.com/pricing"],
-                "example_result": example_result,
-                "notes": notes,
-            }
-        ),
-    )
-
 
 def register_entry(contract, vm, owner, name="SourceWatch", version="1.0.0"):
     vm.sender = owner
