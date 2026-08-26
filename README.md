@@ -73,8 +73,9 @@ with copy-ready usage.
 ## Web app
 
 The web app is a React + TypeScript SPA built at the repo root with Vite. It
-reads the registry live, lets anyone fetch and preview a contract's schema, and
-publish it to the registry with a connected wallet.
+reads the registry live, lets anyone fetch and preview a contract's schema,
+publish it to the registry with a connected wallet, and copy a ready-to-use
+TypeScript or Python SDK generated on the entry detail page.
 
 ```bash
 npm install

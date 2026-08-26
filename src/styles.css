@@ -250,6 +250,25 @@ h3 { font-size: 16px; margin: 0 0 8px; }
 .code-block pre { margin: 0; padding: 12px; font-family: var(--mono); font-size: 12px; overflow-x: auto; color: var(--cyan); line-height: 1.6; }
 .preview-code { max-height: 480px; font-size: 11.5px; color: var(--cyan); }
 
+/* ── SDK tabs ───────────────────────────── */
+.sdk-tabs {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; border-bottom: 1px solid var(--line-soft); padding-bottom: 8px;
+}
+.tab-btn {
+  background: none; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; font-size: 11px; padding: 3px 10px; cursor: pointer;
+  font-family: var(--mono);
+}
+.tab-btn:hover { color: var(--ink); border-color: var(--ink); }
+.tab-btn.active { color: var(--green); border-color: var(--green); }
+.sdk-tabs .copy-btn { margin-left: auto; }
+.sdk-code {
+  background: #0d1220; border: 1px solid var(--line-soft); border-radius: 12px;
+  padding: 18px 20px; font-family: var(--mono); font-size: 11.5px; line-height: 1.65;
+  overflow-x: auto; color: var(--cyan); margin: 0; max-height: 520px; overflow-y: auto;
+}
+
 /* ── Publish page ────────────────────────── */
 .publish-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
 .publish-form { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 16px; }

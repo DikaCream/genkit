@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getEntry, getEntrySchema } from "../lib/contract";
 import { formatDate, shortAddress } from "../lib/client";
+import { generateIndexPy, generateIndexTs } from "../lib/gen-sdk";
 import type { ContractSchema, Entry, SchemaMethod } from "../lib/types";
 
 function typeLabel(t: unknown): string {
@@ -13,6 +14,30 @@ function typeLabel(t: unknown): string {
   return JSON.stringify(t);
 }
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to legacy path
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function EntryDetail() {
   const { id } = useParams();
   const entryId = Number(id);
@@ -20,6 +45,8 @@ export default function EntryDetail() {
   const [entry, setEntry] = useState<Entry | null>(null);
   const [schema, setSchema] = useState<ContractSchema | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"ts" | "py">("ts");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -36,6 +63,26 @@ export default function EntryDetail() {
       alive = false;
     };
   }, [entryId]);
+
+  const sdkCode = useMemo(() => {
+    if (!entry || !schema) return "";
+    try {
+      return tab === "ts"
+        ? generateIndexTs(schema, entry.contract_address, entry.network)
+        : generateIndexPy(schema, entry.contract_address, entry.network);
+    } catch {
+      return "";
+    }
+  }, [entry, schema, tab]);
+
+  const onCopy = async () => {
+    if (!sdkCode) return;
+    const ok = await copyText(sdkCode);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (error && !entry) return <main className="page"><p className="error-banner">{error}</p></main>;
   if (!entry) return <main className="page"><p className="dim">Loading entry…</p></main>;
@@ -118,6 +165,35 @@ export default function EntryDetail() {
             );
           })}
         </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>SDK</h2>
+          <p>Ready-to-use typed wrappers generated from this schema. Copy and drop into your project.</p>
+        </div>
+
+        <div className="sdk-tabs">
+          <button
+            type="button"
+            className={`tab-btn ${tab === "ts" ? "active" : ""}`}
+            onClick={() => setTab("ts")}
+          >
+            index.ts
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${tab === "py" ? "active" : ""}`}
+            onClick={() => setTab("py")}
+          >
+            index.py
+          </button>
+          <button type="button" className="copy-btn" onClick={onCopy} disabled={!sdkCode}>
+            {copied ? "Copied ✓" : "Copy"}
+          </button>
+        </div>
+
+        <pre className="sdk-code">{sdkCode || "// loading schema…"}</pre>
       </section>
     </main>
   );
