@@ -81,7 +81,9 @@ npm install
 npm run dev
 ```
 
-Environment variables (`frontend/.env`):
+Defaults are committed in `frontend/.env.production`, so a Vercel deploy works
+with no environment variables set. To point at another registry or network,
+override them in the Vercel dashboard (Production + Preview):
 
 ```
 VITE_CONTRACT_ADDRESS=0x29cEfC26B316CD65c15AC7eDCbE7C762126b951e
@@ -89,7 +91,7 @@ VITE_GENLAYER_NETWORK=studionet
 VITE_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 ```
 
-Deploy on Vercel with root directory `frontend` and the three variables above.
+Deploy on Vercel with root directory `frontend`.
 
 ## Tests
 
