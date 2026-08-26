@@ -5,11 +5,9 @@ artifacts/
 *.pyc
 node_modules/
 dist/
-frontend/.env
+.env
 .DS_Store
 
-# Generated frontend and local test files
-frontend/*.js
-frontend/*.d.ts
-frontend/*.tsbuildinfo
+# Generated local files
+*.tsbuildinfo
 genkit-sdk/

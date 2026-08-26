@@ -13,7 +13,8 @@ and what is deployed.
 ```
 contracts/genkit_registry.py   # Intelligent Contract (registry)
 cli/                           # Node CLI: fetch schema, generate SDK, publish, list
-frontend/                      # React + TypeScript web app
+src/                           # React + TypeScript web app
+index.html, vite.config.ts     # Vite build (root, Vercel-ready)
 tests/direct/                  # direct VM tests
 ```
 
@@ -71,19 +72,18 @@ with copy-ready usage.
 
 ## Web app
 
-`frontend/` is a React + TypeScript app. It reads the registry live, lets
-anyone fetch and preview a contract's schema, and publish it to the registry
-with a connected wallet.
+The web app is a React + TypeScript SPA built at the repo root with Vite. It
+reads the registry live, lets anyone fetch and preview a contract's schema, and
+publish it to the registry with a connected wallet.
 
 ```bash
-cd frontend
 npm install
 npm run dev
 ```
 
-Defaults are committed in `frontend/.env.production`, so a Vercel deploy works
-with no environment variables set. To point at another registry or network,
-override them in the Vercel dashboard (Production + Preview):
+Defaults are committed in `.env.production`, so a Vercel deploy works with no
+environment variables set. To point at another registry or network, override
+them in the Vercel dashboard (Production + Preview):
 
 ```
 VITE_CONTRACT_ADDRESS=0x29cEfC26B316CD65c15AC7eDCbE7C762126b951e
@@ -91,7 +91,7 @@ VITE_GENLAYER_NETWORK=studionet
 VITE_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 ```
 
-Deploy on Vercel with root directory `frontend`.
+Deploy the repo root on Vercel; the Vite framework is auto-detected.
 
 ## Tests
 
