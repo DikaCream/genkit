@@ -9,6 +9,10 @@ BASE_ISO = "2030-01-01T00:00:00Z"
 
 SOURCEWATCH_ADDR = "0xA46a017B42C63E14eAA710a3aF37F5e8c0b08e37"
 
+# All verifiable networks share the genlayer.com domain; a single URL pattern
+# covers the studio + testnet RPC endpoints in tests.
+RPC_URL_PATTERN = r"genlayer\.com/api"
+
 SCHEMA = {
     "ctor": {"params": [], "kwparams": {}},
     "methods": {
@@ -62,7 +66,20 @@ def reset_time():
     yield
     set_time(BASE_ISO)
 
+def rpc_envelope(result) -> str:
+    return json.dumps({"jsonrpc": "2.0", "id": 1, "result": result})
+
+
+def mock_schema_rpc(vm, result=None) -> None:
+    """Mock the JSON-RPC endpoint validators use to retrieve the authentic schema."""
+    vm.mock_web(
+        RPC_URL_PATTERN,
+        {"method": "POST", "status": 200, "body": rpc_envelope(SCHEMA if result is None else result)},
+    )
+
+
 def register_entry(contract, vm, owner, name="SourceWatch", version="1.0.0"):
+    mock_schema_rpc(vm)
     vm.sender = owner
     entry_id = int(contract.register_contract(name, version, SOURCEWATCH_ADDR, "studionet", SCHEMA_JSON))
     vm.clear_mocks()

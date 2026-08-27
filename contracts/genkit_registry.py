@@ -1,10 +1,13 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """GenKit: an on-chain registry for GenLayer contract schemas.
 
-GenKit turns a deployed contract's on-chain schema into a typed SDK. A developer
-registers the schema here; GenLayer validators verify the keccak hash and method
-count deterministically before the entry is accepted, so every entry is an
-immutable, consensus-committed record of what a contract actually exposes.
+GenKit turns a deployed contract's on-chain schema into a typed SDK. When an
+entry is registered, validators do not trust the submitted schema bytes: each
+validator independently retrieves the authentic schema from the declared
+network's RPC endpoint for the declared contract address, canonicalizes it,
+and commits its keccak hash through comparative consensus. Only schemas that
+provably belong to the declared contract are accepted, so every entry is an
+immutable, consensus-committed record of what the chain itself exposes.
 """
 
 from dataclasses import dataclass
@@ -23,9 +26,14 @@ MAX_NAME_CHARS = 80
 MAX_VERSION_CHARS = 32
 MAX_SCHEMA_CHARS = 30000
 
-_KNOWN_NETWORKS = frozenset(
-    {"localnet", "studionet", "testnet-asimov", "testnet-bradbury"}
-)
+# Networks whose public RPC endpoints validators use to retrieve the authentic
+# schema for a contract address. localnet is excluded: a developer's localhost
+# is unreachable from validator nodes, so registrations there cannot be verified.
+_RPC_BY_NETWORK = {
+    "studionet": "https://studio.genlayer.com/api",
+    "testnet-asimov": "https://rpc-asimov.genlayer.com/api",
+    "testnet-bradbury": "https://rpc-bradbury.genlayer.com/api",
+}
 
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 _VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
@@ -52,6 +60,46 @@ def _now() -> int:
         return int(datetime.datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp())
     except (ValueError, TypeError):
         raise gl.vm.UserError("malformed timestamp")
+
+
+def _canonical(schema: typing.Any) -> str:
+    """Deterministic serialization used when hashing schemas."""
+    return json.dumps(schema, sort_keys=True)
+
+
+def _fetch_schema_from_chain(network: str, address: str) -> typing.Optional[str]:
+    """Retrieve the authentic schema for ``address`` from the network's own RPC.
+
+    Runs during consensus on every validator. Returns the canonical schema text
+    on success, or None if the contract's schema could not be acquired.
+    """
+    rpc_url = _RPC_BY_NETWORK[network]
+    payload = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "gen_getContractSchema",
+            "params": [address],
+        }
+    )
+    try:
+        # web.post returns a lazy handle in some runtimes and a resolved
+        # Response in others; normalize defensively.
+        raw = gl.nondet.web.post(
+            rpc_url, body=payload, headers={"Content-Type": "application/json"}
+        )
+        response = raw.get() if hasattr(raw, "get") else raw
+        if int(response.status) != 200 or response.body is None:
+            return None
+        envelope = json.loads(bytes(response.body).decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(envelope, dict) or "error" in envelope:
+        return None
+    result = envelope.get("result")
+    if not isinstance(result, dict) or not isinstance(result.get("methods"), dict):
+        return None
+    return _canonical(result)
 
 
 def _parse_schema(schema_json: str) -> typing.Any:
@@ -140,6 +188,13 @@ class GenKitRegistry(gl.Contract):
     def register_contract(
         self, name: str, version: str, contract_address: str, network: str, schema_json: str
     ) -> u256:
+        """Register an entry after validators authenticate the on-chain schema.
+
+        ``schema_json`` is an optional caller claim. The authoritative bytes are
+        retrieved by validators from the declared network's RPC for the declared
+        address. If a claim is supplied it must match the retrieval exactly
+        (after canonicalization) or registration is rejected.
+        """
         name = _clean(name, MAX_NAME_CHARS)
         version = _clean(version, MAX_VERSION_CHARS)
         contract_address = contract_address.strip()
@@ -152,23 +207,33 @@ class GenKitRegistry(gl.Contract):
             raise gl.vm.UserError("version must be 1-32 chars of letters, digits, dots, dashes")
         if not _ADDRESS_RE.match(contract_address):
             raise gl.vm.UserError("contract_address must be a 0x-prefixed 40-hex address")
-        if network not in _KNOWN_NETWORKS:
-            raise gl.vm.UserError("network must be localnet, studionet, testnet-asimov, or testnet-bradbury")
-        if not (0 < len(schema_json) <= MAX_SCHEMA_CHARS):
-            raise gl.vm.UserError("schema_json is required and must be compact")
-
-        parsed = _parse_schema(schema_json)
-        if parsed is None:
+        if network not in _RPC_BY_NETWORK:
+            raise gl.vm.UserError(
+                "network must be studionet, testnet-asimov, or testnet-bradbury"
+            )
+        if len(schema_json) > MAX_SCHEMA_CHARS:
+            raise gl.vm.UserError("schema_json is too large")
+        if schema_json and _parse_schema(schema_json) is None:
             raise gl.vm.UserError("schema_json is not a valid contract schema")
 
         def leader() -> str:
-            data = _parse_schema(schema_json)
-            if data is None:
+            # Validators independently acquire the schema for the declared
+            # network + address; submitted bytes are never trusted.
+            retrieved = _fetch_schema_from_chain(network, contract_address)
+            if retrieved is None:
+                return json.dumps({"error": "retrieval_failed"})
+            data = _parse_schema(retrieved)
+            if data is None or not (0 < len(retrieved) <= MAX_SCHEMA_CHARS):
                 return json.dumps({"error": "invalid"})
-            digest = _hash_text(schema_json)
+            digest = _hash_text(retrieved)
             total = len(data.get("methods", {}))
+            if schema_json:
+                claimed = _parse_schema(schema_json)
+                if claimed is None or _hash_text(_canonical(claimed)) != digest:
+                    return json.dumps({"error": "mismatch"})
             return json.dumps(
-                {"schema_hash": digest, "total_methods": total}, sort_keys=True
+                {"schema_hash": digest, "total_methods": total, "schema": retrieved},
+                sort_keys=True,
             )
 
         principle = (
@@ -178,14 +243,33 @@ class GenKitRegistry(gl.Contract):
         try:
             result = json.loads(gl.eq_principle.prompt_comparative(leader, principle))
         except Exception:
-            raise gl.vm.UserError("validators could not verify the schema hash")
+            raise gl.vm.UserError("validators could not authenticate the on-chain schema")
 
-        if "error" in result or not isinstance(result.get("schema_hash"), str):
-            raise gl.vm.UserError("validators could not verify the schema hash")
+        if "error" in result:
+            code = str(result.get("error", ""))
+            if code == "mismatch":
+                raise gl.vm.UserError(
+                    "submitted schema does not match the on-chain schema for this contract"
+                )
+            if code == "invalid":
+                raise gl.vm.UserError("retrieved schema is not a valid contract schema")
+            raise gl.vm.UserError(
+                "validators could not retrieve the on-chain schema for this contract"
+            )
+        if not isinstance(result.get("schema_hash"), str):
+            raise gl.vm.UserError("validators could not authenticate the on-chain schema")
         schema_hash = result["schema_hash"]
         total_methods = int(result.get("total_methods", 0))
-        if len(schema_hash) != 64 or schema_hash != _hash_text(schema_json):
-            raise gl.vm.UserError("validators could not verify the schema hash")
+        stored_schema = str(result.get("schema", ""))
+        parsed_stored = _parse_schema(stored_schema)
+        if (
+            len(schema_hash) != 64
+            or not (0 < len(stored_schema) <= MAX_SCHEMA_CHARS)
+            or parsed_stored is None
+            or schema_hash != _hash_text(stored_schema)
+            or len(parsed_stored.get("methods", {})) != total_methods
+        ):
+            raise gl.vm.UserError("validators could not authenticate the on-chain schema")
 
         entry_id = int(self.next_entry_id)
         self.entries[u256(entry_id)] = Entry(
@@ -196,7 +280,7 @@ class GenKitRegistry(gl.Contract):
             contract_address=contract_address,
             network=network,
             schema_hash=schema_hash,
-            schema_json=schema_json,
+            schema_json=stored_schema,
             total_methods=u256(total_methods),
             status=ACTIVE,
             registered_at=u256(_now()),
